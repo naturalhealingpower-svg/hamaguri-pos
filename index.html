@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>はまぐり窯 商品管理</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+
+  :root {
+    --clay:    #8B5E3C;
+    --ash:     #C4A882;
+    --smoke:   #EDE8DF;
+    --kiln:    #3D2B1F;
+    --glaze:   #5C8A72;
+    --ink:     #1E1612;
+    --paper:   #F7F3EC;
+    --alert:   #C0392B;
+    --low:     #E8804A;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ── ヘッダー ── */
+  header {
+    background: var(--kiln);
+    color: var(--ash);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,.35);
+  }
+  .logo {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: .12em;
+    color: var(--ash);
+  }
+  .logo span { color: var(--smoke); }
+
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  /* ── タブ ── */
+  nav.tabs {
+    background: var(--kiln);
+    display: flex;
+    border-top: 1px solid rgba(255,255,255,.08);
+  }
+  nav.tabs button {
+    flex: 1;
+    padding: 10px 6px;
+    background: none;
+    border: none;
+    color: var(--ash);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: .78rem;
+    cursor: pointer;
+    letter-spacing: .04em;
+    border-bottom: 3px solid transparent;
+    transition: .2s;
+  }
+  nav.tabs button.active {
+    color: var(--smoke);
+    border-bottom-color: var(--ash);
+    background: rgba(255,255,255,.05);
+  }
+
+  /* ── レイアウト ── */
+  main { padding: 20px 16px; max-width: 900px; margin: 0 auto; }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ── 設定パネル ── */
+  .setup-card {
+    background: white;
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.07);
+    margin-bottom: 20px;
+  }
+  .setup-card h2 {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 1rem;
+    color: var(--clay);
+    margin-bottom: 16px;
+    border-left: 3px solid var(--clay);
+    padding-left: 10px;
+  }
+  .field-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field-row label { font-size: .8rem; color: #777; }
+  .field-row input, .field-row select {
+    border: 1.5px solid #ddd;
+    border-radius: 7px;
+    padding: 9px 12px;
+    font-size: .9rem;
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .field-row input:focus, .field-row select:focus { border-color: var(--clay); }
+
+  /* ── ボタン ── */
+  .btn {
+    padding: 9px 18px;
+    border: none;
+    border-radius: 7px;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: .85rem;
+    cursor: pointer;
+    transition: .18s;
+  }
+  .btn-primary   { background: var(--clay);  color: white; }
+  .btn-primary:hover   { background: var(--kiln); }
+  .btn-success   { background: var(--glaze); color: white; }
+  .btn-success:hover   { background: #4a7560; }
+  .btn-danger    { background: var(--alert); color: white; }
+  .btn-outline   { background: transparent; border: 1.5px solid var(--clay); color: var(--clay); }
+  .btn-outline:hover   { background: var(--clay); color: white; }
+  .btn-sm { padding: 5px 12px; font-size: .78rem; }
+
+  /* ── 商品グリッド ── */
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px;
+  }
+
+  .product-card {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    position: relative;
+  }
+  .product-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+  .product-card.out-of-stock { opacity: .55; }
+
+  .product-card img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    background: var(--smoke);
+    display: block;
+  }
+  .product-img-placeholder {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--smoke);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+  }
+
+  .product-info { padding: 10px; }
+  .product-name { font-size: .82rem; font-weight: 500; line-height: 1.4; margin-bottom: 5px; }
+  .product-price {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 1rem;
+    color: var(--clay);
+    font-weight: 600;
+  }
+  .product-stock { font-size: .72rem; color: #888; margin-top: 3px; }
+  .product-stock.low { color: var(--low); font-weight: 500; }
+  .product-stock.zero { color: var(--alert); font-weight: 600; }
+
+  .stock-badge {
+    position: absolute;
+    top: 7px; right: 7px;
+    background: var(--alert);
+    color: white;
+    font-size: .65rem;
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  /* ── レジビュー ── */
+  .register-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 16px;
+  }
+  @media (max-width: 640px) {
+    .register-layout { grid-template-columns: 1fr; }
+  }
+
+  .cart-panel {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.07);
+    position: sticky;
+    top: 110px;
+    height: fit-content;
+  }
+  .cart-panel h3 {
+    font-family: 'Noto Serif JP', serif;
+    font-size: .95rem;
+    color: var(--clay);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--smoke);
+  }
+
+  .cart-items { min-height: 80px; max-height: 280px; overflow-y: auto; }
+  .cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--smoke);
+    font-size: .82rem;
+  }
+  .cart-item-name { flex: 1; }
+  .cart-item-qty {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 8px;
+  }
+  .qty-btn {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ash);
+    background: none;
+    cursor: pointer;
+    font-size: .85rem;
+    line-height: 1;
+    color: var(--clay);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cart-item-total { font-weight: 500; color: var(--clay); min-width: 55px; text-align: right; }
+
+  .cart-summary {
+    margin-top: 12px;
+    font-size: .85rem;
+  }
+  .cart-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    color: #555;
+  }
+  .cart-row.total {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--ink);
+    border-top: 2px solid var(--smoke);
+    margin-top: 6px;
+    padding-top: 8px;
+  }
+
+  /* ── モーダル ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 440px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  }
+  .modal h2 {
+    font-family: 'Noto Serif JP', serif;
+    color: var(--clay);
+    margin-bottom: 18px;
+    font-size: 1.1rem;
+  }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+
+  /* ── レシート ── */
+  .receipt {
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: .82rem;
+    line-height: 1.8;
+  }
+  .receipt-header { text-align: center; margin-bottom: 12px; }
+  .receipt-title { font-family: 'Noto Serif JP', serif; font-size: 1.1rem; color: var(--clay); }
+  .receipt-divider { border: none; border-top: 1px dashed #bbb; margin: 8px 0; }
+  .receipt-item { display: flex; justify-content: space-between; }
+  .receipt-total { font-weight: 600; font-size: .95rem; display: flex; justify-content: space-between; }
+
+  /* ── QRモーダル ── */
+  #qr-container { display: flex; justify-content: center; margin: 16px 0; }
+
+  /* ── 通知 ── */
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--kiln);
+    color: var(--ash);
+    padding: 11px 22px;
+    border-radius: 30px;
+    font-size: .85rem;
+    z-index: 999;
+    transition: transform .3s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── ステータス ── */
+  .sync-status {
+    font-size: .72rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.1);
+    color: var(--ash);
+  }
+  .sync-status.ok { background: rgba(92,138,114,.4); color: #a8dfc6; }
+  .sync-status.err { background: rgba(192,57,43,.4); color: #f5a39a; }
+
+  .search-bar {
+    width: 100%;
+    padding: 9px 14px;
+    border-radius: 30px;
+    border: 1.5px solid #ddd;
+    font-size: .88rem;
+    margin-bottom: 16px;
+    outline: none;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .search-bar:focus { border-color: var(--clay); }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #aaa;
+    font-size: .9rem;
+  }
+
+  @media print {
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { position: fixed; inset: 0; background: white; padding: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span>はまぐり窯</span> 商品管理</div>
+  <div class="header-actions">
+    <span class="sync-status" id="sync-status">未接続</span>
+    <button class="btn btn-outline btn-sm" onclick="openModal('sync-modal')">🔗 シート接続</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="active" onclick="switchTab('products')">🏺 商品一覧</button>
+  <button onclick="switchTab('register')">🛒 レジ</button>
+  <button onclick="switchTab('inventory')">📦 在庫管理</button>
+  <button onclick="switchTab('settings')">⚙️ 設定</button>
+</nav>
+
+<main>
+
+  <!-- ── 商品一覧 ── -->
+  <div id="view-products" class="view active">
+    <input class="search-bar" id="search" placeholder="商品名で絞り込み…" oninput="renderProducts()">
+    <div class="product-grid" id="product-grid">
+      <div class="empty-state">左上の「シート接続」からGoogle スプレッドシートを接続してください。</div>
+    </div>
+  </div>
+
+  <!-- ── レジ ── -->
+  <div id="view-register" class="view">
+    <div class="register-layout">
+      <div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input class="search-bar" id="reg-search" placeholder="商品名で絞り込み…" oninput="renderRegisterProducts()" style="margin-bottom:0;flex:1">
+          <button class="btn btn-outline" onclick="openQrScanner()" title="QRコードで追加" style="white-space:nowrap;padding:9px 14px">📷 QR読取</button>
+        </div>
+        <div class="product-grid" id="reg-product-grid"></div>
+      </div>
+      <div class="cart-panel">
+        <h3>🧾 カート</h3>
+        <div class="cart-items" id="cart-items">
+          <div style="color:#bbb;font-size:.8rem;padding:10px 0">商品をタップして追加</div>
+        </div>
+        <div class="cart-summary">
+          <div class="cart-row"><span>小計</span><span id="subtotal">¥0</span></div>
+          <div class="cart-row"><span>消費税 (10%)</span><span id="tax">¥0</span></div>
+          <div class="cart-row total"><span>合計</span><span id="total">¥0</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+          <button class="btn btn-success" style="width:100%" onclick="checkout(true)">会計 ＋ レシート発行</button>
+          <button class="btn btn-outline" style="width:100%" onclick="checkout(false)">会計のみ（レシートなし）</button>
+          <button class="btn btn-outline btn-sm" style="width:100%;border-color:#ccc;color:#999" onclick="clearCart()">カートをリセット</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 在庫管理 ── -->
+  <div id="view-inventory" class="view">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="font-family:'Noto Serif JP',serif;color:var(--clay)">在庫一覧</h2>
+      <button class="btn btn-primary btn-sm" onclick="openAddProduct()">＋ 商品追加</button>
+    </div>
+    <div id="inventory-list"></div>
+  </div>
+
+  <!-- ── 設定 ── -->
+  <div id="view-settings" class="view">
+    <div class="setup-card">
+      <h2>Google スプレッドシート設定</h2>
+      <div class="field-row">
+        <label>スプレッドシートID</label>
+        <input id="s-sheet-id" placeholder="URLの /d/ 以降の英数字" value="">
+      </div>
+      <div class="field-row">
+        <label>シート名（タブ名）</label>
+        <input id="s-sheet-name" placeholder="例: 商品マスタ" value="商品マスタ">
+      </div>
+      <div class="field-row">
+        <label>Google Apps Script Web App URL</label>
+        <input id="s-gas-url" placeholder="https://script.google.com/macros/s/…/exec" value="">
+      </div>
+      <button class="btn btn-primary" onclick="saveSettings()">保存して接続テスト</button>
+      <p style="font-size:.75rem;color:#999;margin-top:12px">※ Apps Scriptの設置方法は下の「セットアップガイド」をご覧ください</p>
+    </div>
+    <div class="setup-card">
+      <h2>消費税設定</h2>
+      <div class="field-row">
+        <label>税率</label>
+        <select id="s-tax-rate">
+          <option value="0.10" selected>10%（標準）</option>
+          <option value="0.08">8%（軽減税率）</option>
+          <option value="0">非課税</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <label>店舗名（レシート表示）</label>
+        <input id="s-store-name" value="はまぐり窯">
+      </div>
+      <button class="btn btn-outline" onclick="saveMisc()">保存</button>
+    </div>
+    <div class="setup-card">
+      <h2>📋 Google Apps Script セットアップガイド</h2>
+      <ol style="font-size:.82rem;line-height:2;color:#555;padding-left:1.2em">
+        <li>Google スプレッドシートを新規作成し、シート名を「商品マスタ」に変更</li>
+        <li>1行目に次のヘッダーを入力：<br>
+          <code style="background:var(--smoke);padding:2px 6px;border-radius:4px">id, name, price, stock, imageUrl, category, janCode</code>
+        </li>
+        <li>スプレッドシートの「拡張機能」→「Apps Script」を開く</li>
+        <li>下のコードを貼り付けて保存・デプロイ（ウェブアプリとして公開、アクセス：全員）</li>
+        <li>表示されたURLをこのアプリの「Web App URL」欄に貼り付ける</li>
+      </ol>
+      <button class="btn btn-outline btn-sm" onclick="copyGasCode()" style="margin-top:10px">GASコードをコピー</button>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── モーダル: QRスキャナー ── -->
+<div class="modal-overlay" id="qr-scan-modal">
+  <div class="modal" style="max-width:360px">
+    <h2>📷 QRコードで商品を追加</h2>
+    <p style="font-size:.8rem;color:#888;margin-bottom:12px">商品のQRコードにカメラを向けてください</p>
+    <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:1">
+      <video id="qr-video" style="width:100%;height:100%;object-fit:cover" playsinline autoplay></video>
+      <div style="position:absolute;inset:0;border:3px solid var(--clay);border-radius:10px;pointer-events:none;
+        box-shadow:inset 0 0 0 9999px rgba(0,0,0,.35)">
+        <div style="position:absolute;top:20%;left:20%;width:60%;height:60%;border:2px solid white;border-radius:4px;box-shadow:0 0 0 9999px rgba(0,0,0,.0)"></div>
+      </div>
+    </div>
+    <p id="qr-scan-status" style="text-align:center;font-size:.8rem;color:var(--glaze);margin-top:10px">スキャン待機中…</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeQrScanner()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── モーダル: シート接続 ── -->
+<div class="modal-overlay" id="sync-modal">
+  <div class="modal">
+    <h2>🔗 スプレッドシート接続</h2>
+    <div class="field-row">
+      <label>スプレッドシートID</label>
+      <input id="m-sheet-id" placeholder="URLの /d/【ここ】/edit">
+    </div>
+    <div class="field-row">
+      <label>GAS Web App URL</label>
+      <input id="m-gas-url" placeholder="https://script.google.com/macros/s/…/exec">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('sync-modal')">閉じる</button>
+      <button class="btn btn-primary" onclick="connectSheet()">接続する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── モーダル: 商品詳細（レジ用） ── -->
+<div class="modal-overlay" id="product-modal">
+  <div class="modal">
+    <h2 id="pm-name"></h2>
+    <div id="pm-img" style="text-align:center;margin-bottom:14px"></div>
+    <p style="font-family:'Noto Serif JP',serif;font-size:1.4rem;color:var(--clay);font-weight:600" id="pm-price"></p>
+    <p style="font-size:.8rem;color:#888;margin-top:4px" id="pm-stock"></p>
+    <div id="qr-container"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('product-modal')">閉じる</button>
+      <button class="btn btn-success" id="pm-add-btn" onclick="addToCartFromModal()">カートに追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── モーダル: 商品追加/編集 ── -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h2 id="em-title">商品を追加</h2>
+    <input type="hidden" id="em-id">
+    <div class="field-row"><label>商品名</label><input id="em-name"></div>
+    <div class="field-row"><label>価格（円・税抜）</label><input id="em-price" type="number"></div>
+    <div class="field-row"><label>在庫数</label><input id="em-stock" type="number"></div>
+    <div class="field-row"><label>画像URL（Google DriveやImgurなど）</label><input id="em-image" placeholder="https://…"></div>
+    <div class="field-row"><label>カテゴリ</label><input id="em-category" placeholder="例: マグカップ"></div>
+    <div class="field-row"><label>JANコード（任意）</label><input id="em-jan"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('edit-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveProduct()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── モーダル: レシート ── -->
+<div class="modal-overlay" id="receipt-modal">
+  <div class="modal">
+    <div id="print-area">
+      <div class="receipt" id="receipt-content"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('receipt-modal')">閉じる</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨️ 印刷</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━
+let products = [];
+let cart = [];
+let currentProductForModal = null;
+let settings = {};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━
+window.onload = () => {
+  loadSettings();
+  loadLocal();
+};
+
+function loadSettings() {
+  const saved = localStorage.getItem('hamaguri_settings');
+  if (saved) {
+    settings = JSON.parse(saved);
+    if (settings.gasUrl) {
+      document.getElementById('m-gas-url').value = settings.gasUrl;
+      document.getElementById('s-gas-url').value = settings.gasUrl;
+    }
+    if (settings.sheetId) {
+      document.getElementById('m-sheet-id').value = settings.sheetId;
+      document.getElementById('s-sheet-id').value = settings.sheetId;
+    }
+    if (settings.sheetName) document.getElementById('s-sheet-name').value = settings.sheetName;
+    if (settings.storeName) document.getElementById('s-store-name').value = settings.storeName;
+    if (settings.taxRate) document.getElementById('s-tax-rate').value = settings.taxRate;
+  }
+}
+
+function loadLocal() {
+  const saved = localStorage.getItem('hamaguri_products');
+  if (saved) {
+    products = JSON.parse(saved);
+    renderAll();
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  TABS
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function switchTab(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'register') renderRegisterProducts();
+  if (name === 'inventory') renderInventory();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  SHEET CONNECTION
+// ━━━━━━━━━━━━━━━━━━━━━━━
+async function connectSheet() {
+  const gasUrl = document.getElementById('m-gas-url').value.trim();
+  const sheetId = document.getElementById('m-sheet-id').value.trim();
+  if (!gasUrl) { toast('GAS URLを入力してください'); return; }
+  settings.gasUrl = gasUrl;
+  settings.sheetId = sheetId;
+  localStorage.setItem('hamaguri_settings', JSON.stringify(settings));
+  await fetchProducts();
+  closeModal('sync-modal');
+}
+
+async function fetchProducts() {
+  if (!settings.gasUrl) return;
+  const statusEl = document.getElementById('sync-status');
+  statusEl.textContent = '同期中…';
+  statusEl.className = 'sync-status';
+  try {
+    const res = await fetch(settings.gasUrl + '?action=getProducts');
+    const data = await res.json();
+    if (data.products) {
+      products = data.products;
+      localStorage.setItem('hamaguri_products', JSON.stringify(products));
+      renderAll();
+      statusEl.textContent = '✓ 同期済';
+      statusEl.className = 'sync-status ok';
+      toast('商品データを取得しました（' + products.length + '件）');
+    }
+  } catch(e) {
+    statusEl.textContent = '接続エラー';
+    statusEl.className = 'sync-status err';
+    toast('接続に失敗しました。GAS URLを確認してください。');
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  RENDER
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function renderAll() {
+  renderProducts();
+  renderInventory();
+}
+
+function renderProducts() {
+  const q = (document.getElementById('search').value || '').toLowerCase();
+  const grid = document.getElementById('product-grid');
+  const filtered = products.filter(p => p.name.toLowerCase().includes(q));
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="empty-state">商品がありません</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(p => productCardHTML(p, false)).join('');
+}
+
+function renderRegisterProducts() {
+  const q = (document.getElementById('reg-search').value || '').toLowerCase();
+  const grid = document.getElementById('reg-product-grid');
+  const filtered = products.filter(p => p.name.toLowerCase().includes(q));
+  grid.innerHTML = filtered.map(p => productCardHTML(p, true)).join('');
+}
+
+function productCardHTML(p, forRegister) {
+  const stockNum = parseInt(p.stock) || 0;
+  const stockClass = stockNum === 0 ? 'zero' : stockNum <= 3 ? 'low' : '';
+  const stockLabel = stockNum === 0 ? '在庫なし' : stockNum <= 3 ? `残り${stockNum}点` : `在庫 ${stockNum}点`;
+  const imgHTML = p.imageUrl
+    ? `<img src="${p.imageUrl}" alt="${p.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : '';
+  const click = forRegister
+    ? `onclick="openProductModal(${p.id})"`
+    : `onclick="openEditProduct(${p.id})"`;
+  return `
+    <div class="product-card ${stockNum===0?'out-of-stock':''}" ${click}>
+      ${stockNum===0?'<div class="stock-badge">品切れ</div>':''}
+      ${imgHTML}
+      <div class="product-img-placeholder" style="${p.imageUrl?'display:none':''}">🏺</div>
+      <div class="product-info">
+        <div class="product-name">${p.name}</div>
+        <div class="product-price">¥${Number(p.price).toLocaleString()}</div>
+        <div class="product-stock ${stockClass}">${stockLabel}</div>
+      </div>
+    </div>`;
+}
+
+function renderInventory() {
+  const el = document.getElementById('inventory-list');
+  if (products.length === 0) {
+    el.innerHTML = '<div class="empty-state">商品がありません<br><small>右上の「＋ 商品追加」から追加できます</small></div>';
+    return;
+  }
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;background:white;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.07)">
+      <thead>
+        <tr style="background:var(--kiln);color:var(--ash);font-size:.8rem">
+          <th style="padding:10px 12px;text-align:left">商品名</th>
+          <th style="padding:10px 8px;text-align:right">価格</th>
+          <th style="padding:10px 8px;text-align:right">在庫</th>
+          <th style="padding:10px 8px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${products.map(p => {
+          const s = parseInt(p.stock)||0;
+          const sc = s===0?'color:var(--alert);font-weight:600':s<=3?'color:var(--low);font-weight:500':'';
+          return `<tr style="border-bottom:1px solid var(--smoke);font-size:.82rem">
+            <td style="padding:10px 12px">${p.name}</td>
+            <td style="padding:10px 8px;text-align:right">¥${Number(p.price).toLocaleString()}</td>
+            <td style="padding:10px 8px;text-align:right;${sc}">${s}</td>
+            <td style="padding:10px 8px;text-align:right">
+              <button class="btn btn-outline btn-sm" onclick="openEditProduct(${p.id})">編集</button>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  PRODUCT MODAL (view)
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function openProductModal(id) {
+  const p = products.find(x => x.id == id);
+  if (!p) return;
+  currentProductForModal = p;
+  document.getElementById('pm-name').textContent = p.name;
+  document.getElementById('pm-price').textContent = '¥' + Number(p.price).toLocaleString();
+  const s = parseInt(p.stock)||0;
+  document.getElementById('pm-stock').textContent = s===0?'在庫なし':s<=3?`残り${s}点`:`在庫 ${s}点`;
+  const imgEl = document.getElementById('pm-img');
+  imgEl.innerHTML = p.imageUrl ? `<img src="${p.imageUrl}" style="max-width:100%;max-height:180px;border-radius:8px">` : '<div style="font-size:4rem">🏺</div>';
+  // QR
+  document.getElementById('qr-container').innerHTML = '<div id="qr-inner"></div>';
+  new QRCode(document.getElementById('qr-inner'), {
+    text: JSON.stringify({id:p.id, name:p.name, price:p.price}),
+    width: 100, height: 100,
+    colorDark: '#3D2B1F', colorLight: '#F7F3EC'
+  });
+  document.getElementById('pm-add-btn').disabled = s === 0;
+  openModal('product-modal');
+}
+
+function addToCartFromModal() {
+  if (currentProductForModal) {
+    addToCart(currentProductForModal.id);
+    closeModal('product-modal');
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  CART
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function addToCart(id) {
+  const p = products.find(x => x.id == id);
+  if (!p || parseInt(p.stock)===0) return;
+  const item = cart.find(c => c.id == id);
+  if (item) {
+    if (item.qty >= parseInt(p.stock)) { toast('在庫上限です'); return; }
+    item.qty++;
+  } else {
+    cart.push({id: p.id, name: p.name, price: Number(p.price), qty: 1});
+  }
+  renderCart();
+  toast(p.name + ' をカートに追加');
+}
+
+function changeQty(id, delta) {
+  const idx = cart.findIndex(c => c.id == id);
+  if (idx === -1) return;
+  cart[idx].qty += delta;
+  if (cart[idx].qty <= 0) cart.splice(idx, 1);
+  renderCart();
+}
+
+function clearCart() { cart = []; renderCart(); }
+
+function renderCart() {
+  const el = document.getElementById('cart-items');
+  if (cart.length === 0) {
+    el.innerHTML = '<div style="color:#bbb;font-size:.8rem;padding:10px 0">商品をタップして追加</div>';
+  } else {
+    el.innerHTML = cart.map(c => `
+      <div class="cart-item">
+        <div class="cart-item-name">${c.name}</div>
+        <div class="cart-item-qty">
+          <button class="qty-btn" onclick="changeQty(${c.id},-1)">−</button>
+          <span>${c.qty}</span>
+          <button class="qty-btn" onclick="changeQty(${c.id},1)">＋</button>
+        </div>
+        <div class="cart-item-total">¥${(c.price*c.qty).toLocaleString()}</div>
+      </div>`).join('');
+  }
+  const taxRate = parseFloat(document.getElementById('s-tax-rate').value||0.10);
+  const subtotal = cart.reduce((s,c) => s + c.price*c.qty, 0);
+  const tax = Math.floor(subtotal * taxRate);
+  const total = subtotal + tax;
+  document.getElementById('subtotal').textContent = '¥' + subtotal.toLocaleString();
+  document.getElementById('tax').textContent = '¥' + tax.toLocaleString();
+  document.getElementById('total').textContent = '¥' + total.toLocaleString();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  CHECKOUT
+// ━━━━━━━━━━━━━━━━━━━━━━━
+async function checkout(withReceipt) {
+  if (cart.length === 0) { toast('カートが空です'); return; }
+  const taxRate = parseFloat(document.getElementById('s-tax-rate').value||0.10);
+  const subtotal = cart.reduce((s,c) => s + c.price*c.qty, 0);
+  const tax = Math.floor(subtotal * taxRate);
+  const total = subtotal + tax;
+  const storeName = document.getElementById('s-store-name').value || 'はまぐり窯';
+  const now = new Date().toLocaleString('ja-JP');
+
+  // 在庫を減らす（ローカル）
+  cart.forEach(c => {
+    const p = products.find(x => x.id == c.id);
+    if (p) p.stock = Math.max(0, parseInt(p.stock) - c.qty);
+  });
+  localStorage.setItem('hamaguri_products', JSON.stringify(products));
+  renderAll();
+
+  // GASへ送信
+  if (settings.gasUrl) {
+    try {
+      await fetch(settings.gasUrl, {
+        method: 'POST',
+        body: JSON.stringify({action:'checkout', items: cart})
+      });
+    } catch(e) {}
+  }
+
+  if (withReceipt) {
+    const receiptEl = document.getElementById('receipt-content');
+    receiptEl.innerHTML = `
+      <div class="receipt-header">
+        <div class="receipt-title">${storeName}</div>
+        <div style="font-size:.75rem;color:#888;margin-top:4px">${now}</div>
+      </div>
+      <hr class="receipt-divider">
+      ${cart.map(c=>`
+        <div class="receipt-item"><span>${c.name} × ${c.qty}</span><span>¥${(c.price*c.qty).toLocaleString()}</span></div>
+      `).join('')}
+      <hr class="receipt-divider">
+      <div class="receipt-item"><span>小計</span><span>¥${subtotal.toLocaleString()}</span></div>
+      <div class="receipt-item"><span>消費税(${Math.round(taxRate*100)}%)</span><span>¥${tax.toLocaleString()}</span></div>
+      <hr class="receipt-divider">
+      <div class="receipt-total"><span>合計</span><span>¥${total.toLocaleString()}</span></div>
+      <div style="text-align:center;margin-top:16px;font-size:.75rem;color:#aaa">ありがとうございました</div>
+    `;
+    cart = [];
+    renderCart();
+    openModal('receipt-modal');
+  } else {
+    cart = [];
+    renderCart();
+    toast(`会計完了 ¥${total.toLocaleString()}`);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  QR SCANNER
+// ━━━━━━━━━━━━━━━━━━━━━━━
+let qrStream = null;
+let qrAnimFrame = null;
+
+async function openQrScanner() {
+  openModal('qr-scan-modal');
+  document.getElementById('qr-scan-status').textContent = 'カメラを起動中…';
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    });
+    const video = document.getElementById('qr-video');
+    video.srcObject = qrStream;
+    await video.play();
+    document.getElementById('qr-scan-status').textContent = 'スキャン待機中…';
+    scanQrFrame(video);
+  } catch(e) {
+    document.getElementById('qr-scan-status').textContent = 'カメラにアクセスできません。ブラウザの許可設定を確認してください。';
+  }
+}
+
+function scanQrFrame(video) {
+  if (!qrStream) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  try {
+    // BarcodeDetector API（Chrome/Edge/Android対応）
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      detector.detect(canvas).then(codes => {
+        if (codes.length > 0) {
+          handleQrResult(codes[0].rawValue);
+          return;
+        }
+        qrAnimFrame = requestAnimationFrame(() => scanQrFrame(video));
+      }).catch(() => {
+        qrAnimFrame = requestAnimationFrame(() => scanQrFrame(video));
+      });
+    } else {
+      // BarcodeDetector未対応の場合
+      document.getElementById('qr-scan-status').textContent =
+        '⚠️ このブラウザはQRスキャンに未対応です。Chrome（Android）またはSafari（iOS）をお使いください。';
+    }
+  } catch(e) {
+    qrAnimFrame = requestAnimationFrame(() => scanQrFrame(video));
+  }
+}
+
+function handleQrResult(raw) {
+  closeQrScanner();
+  try {
+    const data = JSON.parse(raw);
+    if (data.id) {
+      addToCart(data.id);
+      const p = products.find(x => x.id == data.id);
+      if (p) toast('📷 ' + p.name + ' をスキャン・追加しました');
+      else toast('商品が見つかりませんでした（ID: ' + data.id + '）');
+    }
+  } catch(e) {
+    toast('QRコードを読み取れませんでした');
+  }
+}
+
+function closeQrScanner() {
+  if (qrAnimFrame) { cancelAnimationFrame(qrAnimFrame); qrAnimFrame = null; }
+  if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+  const video = document.getElementById('qr-video');
+  video.srcObject = null;
+  closeModal('qr-scan-modal');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  PRODUCT EDIT
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function openAddProduct() {
+  document.getElementById('em-title').textContent = '商品を追加';
+  document.getElementById('em-id').value = '';
+  ['em-name','em-price','em-stock','em-image','em-category','em-jan'].forEach(id => document.getElementById(id).value = '');
+  openModal('edit-modal');
+}
+
+function openEditProduct(id) {
+  const p = products.find(x => x.id == id);
+  if (!p) return;
+  document.getElementById('em-title').textContent = '商品を編集';
+  document.getElementById('em-id').value = p.id;
+  document.getElementById('em-name').value = p.name || '';
+  document.getElementById('em-price').value = p.price || '';
+  document.getElementById('em-stock').value = p.stock || '';
+  document.getElementById('em-image').value = p.imageUrl || '';
+  document.getElementById('em-category').value = p.category || '';
+  document.getElementById('em-jan').value = p.janCode || '';
+  openModal('edit-modal');
+}
+
+async function saveProduct() {
+  const id = document.getElementById('em-id').value;
+  const prod = {
+    id: id || Date.now(),
+    name: document.getElementById('em-name').value,
+    price: parseInt(document.getElementById('em-price').value)||0,
+    stock: parseInt(document.getElementById('em-stock').value)||0,
+    imageUrl: document.getElementById('em-image').value,
+    category: document.getElementById('em-category').value,
+    janCode: document.getElementById('em-jan').value,
+  };
+  if (!prod.name) { toast('商品名を入力してください'); return; }
+  if (id) {
+    const idx = products.findIndex(p => p.id == id);
+    products[idx] = prod;
+  } else {
+    products.push(prod);
+  }
+  localStorage.setItem('hamaguri_products', JSON.stringify(products));
+  renderAll();
+  closeModal('edit-modal');
+  // GASへ保存
+  if (settings.gasUrl) {
+    try {
+      await fetch(settings.gasUrl, {
+        method: 'POST',
+        body: JSON.stringify({action:'saveProduct', product: prod})
+      });
+      toast('シートに保存しました');
+    } catch(e) { toast('ローカルに保存しました（シート未反映）'); }
+  } else {
+    toast('保存しました');
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  SETTINGS
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function saveSettings() {
+  settings.gasUrl = document.getElementById('s-gas-url').value.trim();
+  settings.sheetId = document.getElementById('s-sheet-id').value.trim();
+  settings.sheetName = document.getElementById('s-sheet-name').value.trim();
+  localStorage.setItem('hamaguri_settings', JSON.stringify(settings));
+  fetchProducts();
+}
+function saveMisc() {
+  settings.storeName = document.getElementById('s-store-name').value;
+  settings.taxRate = document.getElementById('s-tax-rate').value;
+  localStorage.setItem('hamaguri_settings', JSON.stringify(settings));
+  toast('設定を保存しました');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  GAS CODE
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function copyGasCode() {
+  const code = `// ============================================================
+// はまぐり窯 商品管理 - Google Apps Script
+// スプレッドシートの「拡張機能」→「Apps Script」に貼り付けて
+// ウェブアプリとしてデプロイ（アクセス:全員）してください
+// ============================================================
+
+const SHEET_NAME = '商品マスタ';
+
+function doGet(e) {
+  const action = e.parameter.action;
+  if (action === 'getProducts') return getProducts();
+  return ContentService.createTextOutput('OK');
+}
+
+function doPost(e) {
+  const data = JSON.parse(e.postData.contents);
+  if (data.action === 'checkout') return handleCheckout(data.items);
+  if (data.action === 'saveProduct') return saveProduct(data.product);
+  return ContentService.createTextOutput('unknown action');
+}
+
+function getProducts() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(SHEET_NAME);
+  const rows = sh.getDataRange().getValues();
+  const [header, ...data] = rows;
+  const products = data.map(r => {
+    const obj = {};
+    header.forEach((h, i) => obj[h] = r[i]);
+    return obj;
+  });
+  const json = JSON.stringify({products});
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleCheckout(items) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(SHEET_NAME);
+  const rows = sh.getDataRange().getValues();
+  const header = rows[0];
+  const idCol = header.indexOf('id');
+  const stockCol = header.indexOf('stock');
+  items.forEach(item => {
+    for (let i = 1; i < rows.length; i++) {
+      if (String(rows[i][idCol]) === String(item.id)) {
+        const cur = parseInt(rows[i][stockCol]) || 0;
+        sh.getRange(i + 1, stockCol + 1).setValue(Math.max(0, cur - item.qty));
+        break;
+      }
+    }
+  });
+  // 売上記録（任意：売上シートに記録）
+  try {
+    let log = ss.getSheetByName('売上記録');
+    if (!log) { log = ss.insertSheet('売上記録'); log.appendRow(['日時','商品ID','商品名','単価','数量','小計']); }
+    const now = new Date();
+    items.forEach(item => {
+      log.appendRow([now, item.id, item.name, item.price, item.qty, item.price * item.qty]);
+    });
+  } catch(e) {}
+  return ContentService.createTextOutput('ok');
+}
+
+function saveProduct(product) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(SHEET_NAME);
+  const rows = sh.getDataRange().getValues();
+  const header = rows[0];
+  const idCol = header.indexOf('id');
+  const values = header.map(h => product[h] !== undefined ? product[h] : '');
+  let found = false;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][idCol]) === String(product.id)) {
+      sh.getRange(i + 1, 1, 1, header.length).setValues([values]);
+      found = true; break;
+    }
+  }
+  if (!found) sh.appendRow(values);
+  return ContentService.createTextOutput('saved');
+}`;
+  navigator.clipboard.writeText(code).then(() => toast('GASコードをコピーしました'));
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  MODAL HELPERS
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  TOAST
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

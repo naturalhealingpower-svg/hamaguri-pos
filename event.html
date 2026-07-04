@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>はまぐり窯 イベント管理</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+
+:root {
+  --clay:  #8B5E3C;
+  --ash:   #C4A882;
+  --smoke: #EDE8DF;
+  --kiln:  #3D2B1F;
+  --glaze: #5C8A72;
+  --ink:   #1E1612;
+  --paper: #F7F3EC;
+  --warn:  #E8804A;
+  --danger:#C0392B;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+/* ── ヘッダー ── */
+header {
+  background: var(--kiln); color: var(--ash);
+  padding: 13px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,.35);
+}
+.logo { font-family: 'Noto Serif JP', serif; font-size: 1.05rem; font-weight: 600; letter-spacing: .1em; }
+.logo span { color: var(--smoke); }
+
+/* ── ステップナビ ── */
+.step-nav {
+  background: white;
+  border-bottom: 1px solid var(--smoke);
+  display: flex;
+  overflow-x: auto;
+}
+.step-btn {
+  flex: 1; min-width: 80px;
+  padding: 10px 8px;
+  background: none; border: none;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: .72rem; cursor: pointer;
+  color: #aaa; text-align: center;
+  border-bottom: 3px solid transparent;
+  transition: .2s; white-space: nowrap;
+}
+.step-btn.active { color: var(--clay); border-bottom-color: var(--clay); font-weight: 500; }
+.step-btn.done   { color: var(--glaze); }
+
+main { padding: 16px; max-width: 600px; margin: 0 auto; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── カード ── */
+.card {
+  background: white; border-radius: 12px;
+  padding: 20px; margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.07);
+}
+.card h2 {
+  font-family: 'Noto Serif JP', serif;
+  font-size: .95rem; color: var(--clay);
+  border-left: 3px solid var(--clay);
+  padding-left: 10px; margin-bottom: 14px;
+}
+
+/* ── フォーム ── */
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.field label { font-size: .75rem; color: #888; }
+.field input, .field select, .field textarea {
+  border: 1.5px solid #ddd; border-radius: 7px;
+  padding: 8px 10px; font-size: .88rem;
+  font-family: 'Noto Sans JP', sans-serif; outline: none;
+  transition: border-color .2s;
+}
+.field input:focus, .field select:focus { border-color: var(--clay); }
+
+/* ── ボタン ── */
+.btn {
+  padding: 9px 18px; border: none; border-radius: 8px;
+  font-family: 'Noto Sans JP', sans-serif; font-size: .85rem;
+  cursor: pointer; transition: .15s;
+}
+.btn-primary { background: var(--clay); color: white; }
+.btn-primary:hover { background: var(--kiln); }
+.btn-success { background: var(--glaze); color: white; }
+.btn-success:hover { background: #4a7560; }
+.btn-warn    { background: var(--warn); color: white; }
+.btn-outline { background: transparent; border: 1.5px solid var(--clay); color: var(--clay); }
+.btn-outline:hover { background: var(--clay); color: white; }
+.btn-danger  { background: var(--danger); color: white; }
+.btn-sm { padding: 5px 12px; font-size: .76rem; }
+.btn-block { width: 100%; margin-top: 6px; }
+
+/* ── 商品セレクト行 ── */
+.pick-row {
+  display: grid;
+  grid-template-columns: 1fr 70px 28px;
+  gap: 6px; align-items: center;
+  margin-bottom: 8px;
+}
+.pick-row select, .pick-row input {
+  border: 1.5px solid #ddd; border-radius: 7px;
+  padding: 7px 8px; font-size: .82rem;
+  font-family: 'Noto Sans JP', sans-serif; outline: none;
+  width: 100%;
+}
+.pick-row select:focus, .pick-row input:focus { border-color: var(--clay); }
+.del-btn {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: none; background: #f5e8e8; color: var(--danger);
+  cursor: pointer; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── 搬出リスト ── */
+.carry-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.carry-table th {
+  background: var(--kiln); color: var(--ash);
+  padding: 8px 10px; text-align: left; font-weight: 400;
+}
+.carry-table th:nth-child(n+2), .carry-table td:nth-child(n+2) { text-align: center; }
+.carry-table td { padding: 9px 10px; border-bottom: 1px solid var(--smoke); }
+.carry-table tr:last-child td { border-bottom: none; }
+.carry-table tr:nth-child(even) td { background: #faf9f7; }
+
+/* ── 売上カウンター ── */
+.counter-card {
+  background: white; border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px; align-items: center;
+}
+.counter-name { font-size: .9rem; font-weight: 500; }
+.counter-price { font-size: .78rem; color: #888; }
+.counter-stock { font-size: .75rem; }
+.counter-stock.low { color: var(--warn); font-weight: 600; }
+.counter-stock.zero { color: var(--danger); font-weight: 700; }
+.counter-controls { display: flex; align-items: center; gap: 8px; }
+.cnt-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 2px solid var(--ash); background: white;
+  font-size: 1.2rem; cursor: pointer; color: var(--clay);
+  display: flex; align-items: center; justify-content: center;
+  transition: .15s;
+}
+.cnt-btn:active { background: var(--smoke); }
+.cnt-sold {
+  font-family: 'Noto Serif JP', serif;
+  font-size: 1.4rem; font-weight: 600;
+  color: var(--clay); min-width: 32px; text-align: center;
+}
+
+/* ── サマリー ── */
+.summary-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 16px;
+}
+.summary-box {
+  background: white; border-radius: 10px;
+  padding: 14px; text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.summary-box .label { font-size: .75rem; color: #888; margin-bottom: 4px; }
+.summary-box .value {
+  font-family: 'Noto Serif JP', serif;
+  font-size: 1.4rem; font-weight: 600; color: var(--clay);
+}
+.summary-box.highlight .value { color: var(--glaze); }
+
+/* ── 結果テーブル ── */
+.result-table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+.result-table th {
+  background: var(--kiln); color: var(--ash);
+  padding: 7px 10px; text-align: left; font-weight: 400;
+}
+.result-table th:nth-child(n+2), .result-table td:nth-child(n+2) { text-align: center; }
+.result-table td { padding: 8px 10px; border-bottom: 1px solid var(--smoke); }
+.result-table tr:last-child td { border-bottom: none; }
+.sold-num { font-weight: 600; color: var(--clay); }
+.remain-num { color: #666; }
+
+/* ── 印刷 ── */
+@media print {
+  header, .step-nav, .no-print { display: none !important; }
+  body { background: white; }
+  main { padding: 0; max-width: 100%; }
+  .card { box-shadow: none; border: 1px solid #ddd; }
+  .view { display: block !important; }
+  .view:not(.print-target) { display: none !important; }
+}
+
+/* ── トースト ── */
+.toast {
+  position: fixed; bottom: 20px; left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--kiln); color: var(--ash);
+  padding: 10px 22px; border-radius: 30px;
+  font-size: .85rem; z-index: 999;
+  transition: transform .3s; pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ── モーダル ── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 200;
+  align-items: center; justify-content: center; padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: white; border-radius: 14px;
+  padding: 24px; width: 100%; max-width: 360px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+.modal h3 { font-family: 'Noto Serif JP', serif; color: var(--clay); margin-bottom: 14px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+
+.phase-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: .72rem; font-weight: 600; letter-spacing: .05em;
+  margin-bottom: 12px;
+}
+.phase-before { background: #FEF3E2; color: #E8804A; }
+.phase-during { background: #E8F5E9; color: #4a7560; }
+.phase-after  { background: #EDE8DF; color: #8B5E3C; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span>はまぐり窯</span> イベント管理</div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-outline btn-sm" onclick="window.print()" style="color:var(--ash);border-color:var(--ash)">🖨️ 印刷</button>
+  </div>
+</header>
+
+<!-- ステップナビ -->
+<nav class="step-nav">
+  <button class="step-btn active" id="tab0" onclick="goStep(0)">① イベント設定</button>
+  <button class="step-btn" id="tab1" onclick="goStep(1)">② 搬出登録</button>
+  <button class="step-btn" id="tab2" onclick="goStep(2)">③ 搬出リスト</button>
+  <button class="step-btn" id="tab3" onclick="goStep(3)">④ 当日販売</button>
+  <button class="step-btn" id="tab4" onclick="goStep(4)">⑤ 終了・集計</button>
+</nav>
+
+<main>
+
+<!-- ① イベント設定 -->
+<div id="step0" class="view active">
+  <div class="card">
+    <div class="phase-badge phase-before">イベント前</div>
+    <h2>イベント情報を登録</h2>
+    <div class="field"><label>イベント名</label>
+      <input id="ev-name" placeholder="例：灯しびとの集い 2026" oninput="saveEvent()">
+    </div>
+    <div class="field"><label>開催日</label>
+      <input type="date" id="ev-date" oninput="saveEvent()">
+    </div>
+    <div class="field"><label>会場</label>
+      <input id="ev-place" placeholder="例：大阪府営住吉公園" oninput="saveEvent()">
+    </div>
+    <div class="field"><label>メモ（搬入時間・ブース番号など）</label>
+      <input id="ev-memo" placeholder="例：ブースNo.A-12 搬入9:00〜" oninput="saveEvent()">
+    </div>
+    <button class="btn btn-primary btn-block" onclick="goStep(1)">次へ：持ち出す商品を選ぶ →</button>
+  </div>
+  <div class="card" style="border: 1.5px dashed var(--ash);">
+    <h2>過去のイベント</h2>
+    <div id="past-events-list">
+      <p style="font-size:.82rem;color:#aaa">まだ記録がありません</p>
+    </div>
+  </div>
+</div>
+
+<!-- ② 搬出登録 -->
+<div id="step1" class="view">
+  <div class="card">
+    <div class="phase-badge phase-before">イベント前</div>
+    <h2>持ち出す商品と数を登録</h2>
+    <div style="display:grid;grid-template-columns:1fr 70px 28px;gap:6px;margin-bottom:6px">
+      <span style="font-size:.72rem;color:#aaa">商品名</span>
+      <span style="font-size:.72rem;color:#aaa;text-align:center">持出数</span>
+      <span></span>
+    </div>
+    <div id="carry-rows"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-outline btn-sm" onclick="addCarryRow()">＋ 行追加</button>
+      <button class="btn btn-outline btn-sm" onclick="importFromProducts()">🏺 商品リストから</button>
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--smoke)">
+      <div style="font-size:.82rem;color:#888;margin-bottom:8px">持出合計：<strong id="carry-total-count">0</strong> 点　推定売上上限：<strong id="carry-total-price">¥0</strong></div>
+      <button class="btn btn-primary btn-block" onclick="goStep(2)">次へ：搬出リストを確認 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ③ 搬出リスト（印刷用） -->
+<div id="step2" class="view print-target">
+  <div class="card">
+    <div class="phase-badge phase-before no-print">印刷してチェックリストに</div>
+    <h2 id="carry-list-title">搬出リスト</h2>
+    <div id="carry-list-meta" style="font-size:.82rem;color:#666;margin-bottom:14px"></div>
+    <table class="carry-table" id="carry-list-table">
+      <thead>
+        <tr>
+          <th>商品名</th>
+          <th>持出数</th>
+          <th>積込✓</th>
+          <th>搬入✓</th>
+        </tr>
+      </thead>
+      <tbody id="carry-list-body"></tbody>
+      <tfoot>
+        <tr>
+          <td style="font-weight:600;padding:9px 10px">合計</td>
+          <td style="text-align:center;font-weight:600" id="carry-list-total"></td>
+          <td></td><td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <div style="margin-top:14px;font-size:.78rem;color:#aaa">はまぐり窯 / 作成日：<span id="carry-list-date"></span></div>
+    <div class="no-print" style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-outline btn-sm" onclick="window.print()">🖨️ 印刷</button>
+      <button class="btn btn-primary" onclick="startEvent()">イベント開始 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ④ 当日販売 -->
+<div id="step3" class="view">
+  <div class="card">
+    <div class="phase-badge phase-during">イベント当日</div>
+    <h2>販売カウンター</h2>
+    <p style="font-size:.8rem;color:#888;margin-bottom:14px">売れたら「＋」を押してください。在庫が自動で減ります。</p>
+    <div id="counter-list"></div>
+  </div>
+  <div class="card">
+    <h2>現在の売上</h2>
+    <div class="summary-grid">
+      <div class="summary-box">
+        <div class="label">販売点数</div>
+        <div class="value" id="live-count">0 点</div>
+      </div>
+      <div class="summary-box highlight">
+        <div class="label">売上合計（税込）</div>
+        <div class="value" id="live-sales">¥0</div>
+      </div>
+    </div>
+    <button class="btn btn-warn btn-block no-print" onclick="openModal('end-modal')">イベント終了・集計へ</button>
+  </div>
+</div>
+
+<!-- ⑤ 終了・集計 -->
+<div id="step4" class="view">
+  <div class="card">
+    <div class="phase-badge phase-after">イベント終了</div>
+    <h2 id="result-event-name">集計結果</h2>
+    <div id="result-meta" style="font-size:.82rem;color:#666;margin-bottom:14px"></div>
+    <div class="summary-grid">
+      <div class="summary-box">
+        <div class="label">販売点数</div>
+        <div class="value" id="result-count">—</div>
+      </div>
+      <div class="summary-box highlight">
+        <div class="label">売上合計</div>
+        <div class="value" id="result-sales">—</div>
+      </div>
+      <div class="summary-box">
+        <div class="label">持出数</div>
+        <div class="value" id="result-carry">—</div>
+      </div>
+      <div class="summary-box">
+        <div class="label">持帰数</div>
+        <div class="value" id="result-remain">—</div>
+      </div>
+    </div>
+    <table class="result-table">
+      <thead>
+        <tr>
+          <th>商品名</th>
+          <th>持出</th>
+          <th>販売</th>
+          <th>持帰</th>
+          <th>売上</th>
+        </tr>
+      </thead>
+      <tbody id="result-body"></tbody>
+    </table>
+    <div style="margin-top:16px;padding:12px;background:var(--smoke);border-radius:8px;font-size:.82rem;color:#555" id="result-notes"></div>
+  </div>
+  <div class="card no-print">
+    <h2>在庫への反映</h2>
+    <p style="font-size:.82rem;color:#555;margin-bottom:14px">イベントの販売結果を商品管理システムの在庫に反映します。</p>
+    <button class="btn btn-success btn-block" onclick="applyToInventory()">✅ 商品管理システムの在庫に反映</button>
+    <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="window.print()">🖨️ 集計レポートを印刷</button>
+    <button class="btn btn-outline btn-block" style="margin-top:8px;border-color:#aaa;color:#999" onclick="resetAll()">新しいイベントを始める</button>
+  </div>
+</div>
+
+</main>
+
+<!-- イベント終了確認モーダル -->
+<div class="modal-overlay" id="end-modal">
+  <div class="modal">
+    <h3>イベントを終了しますか？</h3>
+    <p style="font-size:.85rem;color:#666">終了すると集計画面に移動します。販売カウンターの内容が確定されます。</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('end-modal')">戻る</button>
+      <button class="btn btn-primary btn-sm" onclick="finishEvent()">終了・集計へ</button>
+    </div>
+  </div>
+</div>
+
+<!-- 商品インポートモーダル -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal" style="max-width:420px">
+    <h3>商品リストから選択</h3>
+    <p style="font-size:.78rem;color:#888;margin-bottom:12px">持ち出す商品にチェックを入れてください</p>
+    <div id="import-list" style="max-height:300px;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('import-modal')">キャンセル</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmImport()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━
+let products = [];      // 商品マスタ（index.htmlから）
+let carryItems = [];    // 搬出登録：[{id, name, price, carry, sold}]
+let currentStep = 0;
+let eventInfo = {};
+let importSelected = new Set();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━
+window.onload = () => {
+  loadProducts();
+  loadEventState();
+  renderPastEvents();
+  document.getElementById('ev-date').value = new Date().toISOString().slice(0,10);
+  addCarryRow();
+};
+
+function loadProducts() {
+  const s = localStorage.getItem('hamaguri_products');
+  products = s ? JSON.parse(s) : [];
+}
+
+function loadEventState() {
+  const s = localStorage.getItem('hamaguri_event_current');
+  if (!s) return;
+  const state = JSON.parse(s);
+  carryItems = state.carryItems || [];
+  eventInfo  = state.eventInfo  || {};
+  // フォームに復元
+  if (eventInfo.name)  document.getElementById('ev-name').value  = eventInfo.name;
+  if (eventInfo.date)  document.getElementById('ev-date').value  = eventInfo.date;
+  if (eventInfo.place) document.getElementById('ev-place').value = eventInfo.place;
+  if (eventInfo.memo)  document.getElementById('ev-memo').value  = eventInfo.memo;
+  renderCarryRows();
+  updateCarryTotal();
+}
+
+function saveState() {
+  localStorage.setItem('hamaguri_event_current', JSON.stringify({ carryItems, eventInfo }));
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP NAVIGATION
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function goStep(n) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('step' + n).classList.add('active');
+  document.getElementById('tab' + n).classList.add('active');
+  currentStep = n;
+  if (n === 2) renderCarryList();
+  if (n === 3) renderCounters();
+  if (n === 4) renderResult();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP 0: イベント情報
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function saveEvent() {
+  eventInfo = {
+    name:  document.getElementById('ev-name').value,
+    date:  document.getElementById('ev-date').value,
+    place: document.getElementById('ev-place').value,
+    memo:  document.getElementById('ev-memo').value,
+  };
+  saveState();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP 1: 搬出登録
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function addCarryRow(name='', carry=1, price=0, id=null) {
+  carryItems.push({ id: id || Date.now(), name, price, carry, sold: 0 });
+  renderCarryRows();
+  updateCarryTotal();
+}
+
+function removeCarryRow(idx) {
+  carryItems.splice(idx, 1);
+  renderCarryRows();
+  updateCarryTotal();
+  saveState();
+}
+
+function renderCarryRows() {
+  const c = document.getElementById('carry-rows');
+  c.innerHTML = carryItems.map((item, i) => `
+    <div class="pick-row">
+      <input value="${item.name}" placeholder="商品名"
+        oninput="carryItems[${i}].name=this.value;updateCarryTotal();saveState()">
+      <input type="number" value="${item.carry}" min="1" style="text-align:center"
+        oninput="carryItems[${i}].carry=parseInt(this.value)||0;updateCarryTotal();saveState()">
+      <button class="del-btn" onclick="removeCarryRow(${i})">×</button>
+    </div>`).join('');
+}
+
+function updateCarryTotal() {
+  const total = carryItems.reduce((s,i) => s + (parseInt(i.carry)||0), 0);
+  const price = carryItems.reduce((s,i) => s + (parseInt(i.carry)||0) * (parseInt(i.price)||0), 0);
+  document.getElementById('carry-total-count').textContent = total;
+  document.getElementById('carry-total-price').textContent = '¥' + price.toLocaleString();
+}
+
+function importFromProducts() {
+  if (products.length === 0) {
+    toast('商品データがありません。商品管理システムで登録してください。');
+    return;
+  }
+  importSelected.clear();
+  const list = document.getElementById('import-list');
+  list.innerHTML = products.map(p => `
+    <label style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--smoke);cursor:pointer">
+      <input type="checkbox" value="${p.id}" onchange="toggleImport(${p.id},this.checked)" style="width:16px;height:16px;accent-color:var(--clay)">
+      <div style="flex:1">
+        <div style="font-size:.87rem;font-weight:500">${p.name}</div>
+        <div style="font-size:.75rem;color:#888">在庫 ${p.stock}点　¥${Number(p.price).toLocaleString()}</div>
+      </div>
+      <input type="number" id="imp-qty-${p.id}" value="${Math.min(parseInt(p.stock)||0, 5)}" min="1" max="${p.stock}"
+        style="width:52px;border:1.5px solid #ddd;border-radius:6px;padding:4px 6px;font-size:.82rem;text-align:center"
+        onclick="event.stopPropagation()">
+    </label>`).join('');
+  openModal('import-modal');
+}
+
+function toggleImport(id, checked) {
+  checked ? importSelected.add(id) : importSelected.delete(id);
+}
+
+function confirmImport() {
+  importSelected.forEach(id => {
+    const p = products.find(x => x.id == id);
+    if (!p) return;
+    const qty = parseInt(document.getElementById('imp-qty-' + id)?.value) || 1;
+    // 既存行があれば更新
+    const exists = carryItems.find(c => c.id == id);
+    if (exists) { exists.carry = qty; }
+    else { carryItems.push({ id: p.id, name: p.name, price: Number(p.price), carry: qty, sold: 0 }); }
+  });
+  renderCarryRows();
+  updateCarryTotal();
+  saveState();
+  closeModal('import-modal');
+  toast(importSelected.size + '件を追加しました');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP 2: 搬出リスト
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function renderCarryList() {
+  const ev = eventInfo;
+  document.getElementById('carry-list-title').textContent =
+    (ev.name || 'イベント') + '　搬出リスト';
+  document.getElementById('carry-list-meta').textContent =
+    [ev.date ? fmtDate(ev.date) : '', ev.place, ev.memo].filter(Boolean).join('　/　');
+  document.getElementById('carry-list-date').textContent =
+    new Date().toLocaleDateString('ja-JP');
+
+  const tbody = document.getElementById('carry-list-body');
+  tbody.innerHTML = carryItems.map(item => `
+    <tr>
+      <td>${item.name || '（未入力）'}</td>
+      <td style="text-align:center">${item.carry}</td>
+      <td style="text-align:center">□</td>
+      <td style="text-align:center">□</td>
+    </tr>`).join('');
+  const total = carryItems.reduce((s,i) => s+(parseInt(i.carry)||0), 0);
+  document.getElementById('carry-list-total').textContent = total + ' 点';
+}
+
+function startEvent() {
+  // soldを0にリセット
+  carryItems.forEach(i => i.sold = 0);
+  saveState();
+  document.getElementById('tab1').classList.add('done');
+  document.getElementById('tab2').classList.add('done');
+  goStep(3);
+  toast('イベントを開始しました！');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP 3: 当日販売カウンター
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function renderCounters() {
+  const c = document.getElementById('counter-list');
+  c.innerHTML = carryItems.map((item, i) => {
+    const remain = (parseInt(item.carry)||0) - (parseInt(item.sold)||0);
+    const sc = remain === 0 ? 'zero' : remain <= 2 ? 'low' : '';
+    const stockLabel = remain === 0 ? '売り切れ！' : remain <= 2 ? `残り${remain}点` : `残り${remain}点`;
+    return `
+      <div class="counter-card">
+        <div>
+          <div class="counter-name">${item.name}</div>
+          <div class="counter-price">¥${Number(item.price).toLocaleString()}</div>
+          <div class="counter-stock ${sc}">${stockLabel}</div>
+        </div>
+        <div class="counter-controls">
+          <button class="cnt-btn" onclick="countSale(${i}, -1)" ${item.sold<=0?'disabled style="opacity:.3"':''}>−</button>
+          <div class="cnt-sold">${item.sold || 0}</div>
+          <button class="cnt-btn" onclick="countSale(${i}, 1)" ${remain<=0?'disabled style="opacity:.3"':''}>＋</button>
+        </div>
+      </div>`;
+  }).join('');
+  updateLiveSales();
+}
+
+function countSale(idx, delta) {
+  const item = carryItems[idx];
+  const remain = (parseInt(item.carry)||0) - (parseInt(item.sold)||0);
+  if (delta > 0 && remain <= 0) { toast('在庫上限です'); return; }
+  if (delta < 0 && (item.sold||0) <= 0) return;
+  item.sold = (item.sold || 0) + delta;
+  saveState();
+  renderCounters();
+}
+
+function updateLiveSales() {
+  const count = carryItems.reduce((s,i) => s+(parseInt(i.sold)||0), 0);
+  const sales = carryItems.reduce((s,i) => s+(parseInt(i.sold)||0)*(parseInt(i.price)||0), 0);
+  document.getElementById('live-count').textContent = count + ' 点';
+  document.getElementById('live-sales').textContent = '¥' + sales.toLocaleString();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP 4: 集計・終了
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function finishEvent() {
+  closeModal('end-modal');
+  document.getElementById('tab3').classList.add('done');
+  goStep(4);
+}
+
+function renderResult() {
+  const ev = eventInfo;
+  document.getElementById('result-event-name').textContent = (ev.name || 'イベント') + '　集計結果';
+  document.getElementById('result-meta').textContent =
+    [ev.date ? fmtDate(ev.date) : '', ev.place].filter(Boolean).join('　/　');
+
+  const totalCarry = carryItems.reduce((s,i) => s+(parseInt(i.carry)||0), 0);
+  const totalSold  = carryItems.reduce((s,i) => s+(parseInt(i.sold)||0),  0);
+  const totalSales = carryItems.reduce((s,i) => s+(parseInt(i.sold)||0)*(parseInt(i.price)||0), 0);
+  const totalBack  = totalCarry - totalSold;
+
+  document.getElementById('result-count').textContent  = totalSold + ' 点';
+  document.getElementById('result-sales').textContent  = '¥' + totalSales.toLocaleString();
+  document.getElementById('result-carry').textContent  = totalCarry + ' 点';
+  document.getElementById('result-remain').textContent = totalBack + ' 点';
+
+  const tbody = document.getElementById('result-body');
+  tbody.innerHTML = carryItems.map(item => {
+    const carry = parseInt(item.carry)||0;
+    const sold  = parseInt(item.sold)||0;
+    const back  = carry - sold;
+    const sales = sold * (parseInt(item.price)||0);
+    return `<tr>
+      <td>${item.name}</td>
+      <td>${carry}</td>
+      <td class="sold-num">${sold}</td>
+      <td class="remain-num">${back}</td>
+      <td style="text-align:center">¥${sales.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+
+  const rate = totalCarry > 0 ? Math.round(totalSold/totalCarry*100) : 0;
+  document.getElementById('result-notes').innerHTML =
+    `<strong>販売率：${rate}%</strong>　${totalSold}点 / ${totalCarry}点中<br>
+     ${rate >= 80 ? '🎉 好調なイベントでした！次回はもう少し多めに持ち出せそうです。' :
+       rate >= 50 ? '✅ 順調な結果です。' :
+       '📦 持ち帰りが多めでした。次回は持出数を調整してみましょう。'}`;
+}
+
+function applyToInventory() {
+  // 商品管理システム（localStorage）の在庫を減らす
+  let updated = 0;
+  carryItems.forEach(item => {
+    if (!item.sold || item.sold <= 0) return;
+    const p = products.find(x => x.id == item.id);
+    if (p) {
+      p.stock = Math.max(0, (parseInt(p.stock)||0) - item.sold);
+      updated++;
+    }
+  });
+  if (updated > 0) {
+    localStorage.setItem('hamaguri_products', JSON.stringify(products));
+    toast('✅ ' + updated + '件の在庫を商品管理システムに反映しました');
+  } else {
+    toast('商品管理システムと紐付けられた商品がありません（手動追加分は反映されません）');
+  }
+  // 過去イベントに保存
+  savePastEvent();
+}
+
+function savePastEvent() {
+  const past = JSON.parse(localStorage.getItem('hamaguri_past_events') || '[]');
+  const totalSold  = carryItems.reduce((s,i) => s+(parseInt(i.sold)||0), 0);
+  const totalSales = carryItems.reduce((s,i) => s+(parseInt(i.sold)||0)*(parseInt(i.price)||0), 0);
+  past.unshift({
+    ...eventInfo,
+    savedAt: new Date().toISOString(),
+    totalSold, totalSales,
+    carryItems: JSON.parse(JSON.stringify(carryItems)),
+  });
+  localStorage.setItem('hamaguri_past_events', JSON.stringify(past.slice(0, 20)));
+}
+
+function renderPastEvents() {
+  const past = JSON.parse(localStorage.getItem('hamaguri_past_events') || '[]');
+  const el = document.getElementById('past-events-list');
+  if (past.length === 0) return;
+  el.innerHTML = past.map(ev => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--smoke);font-size:.83rem">
+      <div style="font-weight:500">${ev.name || '名称未設定'}</div>
+      <div style="color:#888;font-size:.75rem">${ev.date ? fmtDate(ev.date) : ''}　${ev.place||''}</div>
+      <div style="color:var(--clay);font-size:.8rem;margin-top:3px">
+        販売 ${ev.totalSold}点　売上 ¥${(ev.totalSales||0).toLocaleString()}
+      </div>
+    </div>`).join('');
+}
+
+function resetAll() {
+  if (!confirm('新しいイベントを始めますか？現在のデータはリセットされます。')) return;
+  carryItems = [];
+  eventInfo = {};
+  localStorage.removeItem('hamaguri_event_current');
+  ['ev-name','ev-place','ev-memo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ev-date').value = new Date().toISOString().slice(0,10);
+  renderCarryRows();
+  updateCarryTotal();
+  renderPastEvents();
+  document.querySelectorAll('.step-btn').forEach(b => { b.classList.remove('done'); b.classList.remove('active'); });
+  goStep(0);
+  document.getElementById('tab0').classList.add('active');
+  addCarryRow();
+  toast('リセットしました');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  UTILS
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function fmtDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>
