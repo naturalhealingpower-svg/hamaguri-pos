@@ -390,30 +390,36 @@ function selectNone() {
 //  ラベル生成
 // ━━━━━━━━━━━━━━━━━━━━━━━
 function generateLabels() {
-  // 選択商品とラベルデータを収集
   const labelData = [];
   products.forEach(p => {
     const chk = document.getElementById('chk-' + p.id);
     if (!chk || !chk.checked) return;
     const isUnique = p.itemType === 'unique';
     if (isUnique) {
-      // 一点物：各点ごとにQRデータを生成
-      (p.units||[]).filter(u=>u.status==='available').forEach(u => {
+      const availUnits = (p.units||[]).filter(u=>u.status==='available');
+      if (availUnits.length === 0) {
+        // 在庫0の一点物：QRデータだけ生成（商品番号ベース）
         labelData.push({
-          qrData: JSON.stringify({id:p.id, unitId:u.unitId, name:p.name, price:p.price, isUnique:true}),
-          name: p.name,
-          sub: u.label || 'No.'+u.unitId,
-          price: p.price,
+          qrData: JSON.stringify({id:p.id, name:p.name, price:p.price}),
+          name: p.name, sub: null, price: p.price,
         });
-      });
+      } else {
+        availUnits.forEach(u => {
+          labelData.push({
+            qrData: JSON.stringify({id:p.id, unitId:u.unitId, name:p.name, price:p.price, isUnique:true}),
+            name: p.name,
+            sub: u.label || 'No.'+u.unitId,
+            price: p.price,
+          });
+        });
+      }
     } else {
-      const qty = parseInt(document.getElementById('qty-' + p.id)?.value) || 1;
+      const qtyEl = document.getElementById('qty-' + p.id);
+      const qty = qtyEl ? (parseInt(qtyEl.value) || 1) : 1;
       for (let i = 0; i < qty; i++) {
         labelData.push({
           qrData: JSON.stringify({id:p.id, name:p.name, price:p.price}),
-          name: p.name,
-          sub: null,
-          price: p.price,
+          name: p.name, sub: null, price: p.price,
         });
       }
     }
@@ -421,72 +427,71 @@ function generateLabels() {
 
   if (labelData.length === 0) { toast('印刷する商品を選択してください'); return; }
   if (labelData.length > 70) {
-    if (!confirm(`${labelData.length}枚のラベルが必要です。70枚を超えるため複数シートになります。最初の70枚を生成しますか？`)) return;
+    if (!confirm(`${labelData.length}枚のラベルが必要です。最初の70枚を生成しますか？`)) return;
   }
 
-  // グリッドをクリア（70マス）
   const grid = document.getElementById('label-grid');
   grid.innerHTML = '';
-
   const total = Math.min(labelData.length, 70);
-  const promises = [];
+
+  // QRCodeライブラリの読み込み確認
+  if (typeof QRCode === 'undefined') {
+    toast('QRコードライブラリが読み込まれていません。ページを再読み込みしてください。');
+    return;
+  }
 
   for (let i = 0; i < 70; i++) {
     const cell = document.createElement('div');
     cell.className = 'label' + (i >= total ? ' empty' : '');
     grid.appendChild(cell);
-
     if (i >= total) continue;
+
     const d = labelData[i];
 
-    // QRラップ
     const qrWrap = document.createElement('div');
     qrWrap.className = 'qr-wrap';
     cell.appendChild(qrWrap);
 
-    // 商品名
     const nameEl = document.createElement('div');
     nameEl.className = 'lbl-name';
-    // 名前が長い場合は短縮
     let displayName = d.name;
     if (d.sub) displayName = d.name.length > 6 ? d.name.slice(0,6)+'…' : d.name;
     nameEl.textContent = displayName + (d.sub ? ' ' + d.sub : '');
     cell.appendChild(nameEl);
 
-    // 価格
     const priceEl = document.createElement('div');
     priceEl.className = 'lbl-price';
     priceEl.textContent = '¥' + Number(d.price).toLocaleString();
     cell.appendChild(priceEl);
 
-    // QR生成（非同期）
-    const p = new Promise(resolve => {
-      setTimeout(() => {
-        new QRCode(qrWrap, {
-          text: d.qrData,
-          width: 49, height: 49, // 13mm @ 96dpi ≈ 49px
-          colorDark: '#1E1612',
-          colorLight: '#ffffff',
-          correctLevel: QRCode.CorrectLevel.M
-        });
-        resolve();
-      }, i * 8); // 少しずつ遅らせて負荷分散
-    });
-    promises.push(p);
+    try {
+      new QRCode(qrWrap, {
+        text: d.qrData,
+        width: 49, height: 49,
+        colorDark: '#1E1612',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e) {
+      qrWrap.style.background = '#eee';
+      qrWrap.style.display = 'flex';
+      qrWrap.style.alignItems = 'center';
+      qrWrap.style.justifyContent = 'center';
+      qrWrap.style.fontSize = '6pt';
+      qrWrap.textContent = 'QR Error';
+    }
   }
 
-  Promise.all(promises).then(() => {
+  // 少し待ってから画面切替（QR描画完了を待つ）
+  setTimeout(() => {
     document.getElementById('select-area').style.display = 'none';
     document.getElementById('preview-area').style.display = '';
     document.getElementById('print-btn').style.display = '';
-    document.getElementById('label-summary').textContent =
-      `${total}枚のラベルを生成しました（A-one 75270・1シート70面）`;
-    if (labelData.length > 70) {
-      document.getElementById('label-summary').textContent +=
-        `\n※ ${labelData.length}枚中、最初の70枚のみ表示しています`;
-    }
+    let summary = `${total}枚のラベルを生成しました（A-one 75270・1シート70面）`;
+    if (labelData.length > 70) summary += `\n※ ${labelData.length}枚中、最初の70枚のみ表示`;
+    document.getElementById('label-summary').textContent = summary;
     toast(total + '枚のラベルを生成しました');
-  });
+  }, 300);
 }
 
 function backToSelect() {
