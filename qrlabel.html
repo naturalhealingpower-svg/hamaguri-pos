@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>はまぐり窯 QRラベル印刷 (A-one 75270)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&family=Noto+Serif+JP:wght@400;600&display=swap');
+
+:root {
+  --clay: #8B5E3C;
+  --kiln: #3D2B1F;
+  --ash:  #C4A882;
+  --smoke:#EDE8DF;
+  --paper:#F7F3EC;
+  --glaze:#5C8A72;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--paper);
+  color: var(--kiln);
+}
+
+/* ── 画面表示用コントロール ── */
+.control-panel {
+  background: var(--kiln);
+  color: var(--ash);
+  padding: 14px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+}
+.control-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.logo {
+  font-family: 'Noto Serif JP', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: .1em;
+  color: var(--ash);
+}
+.logo span { color: white; }
+.ctrl-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.btn {
+  padding: 7px 16px;
+  border: none;
+  border-radius: 7px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: .82rem;
+  cursor: pointer;
+  transition: .15s;
+}
+.btn-primary { background: var(--clay); color: white; }
+.btn-primary:hover { background: #6e4a2e; }
+.btn-success { background: var(--glaze); color: white; }
+.btn-outline { background: transparent; border: 1.5px solid var(--ash); color: var(--ash); }
+.btn-outline:hover { background: rgba(255,255,255,.1); }
+
+.status-badge {
+  font-size: .75rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.1);
+  color: var(--ash);
+}
+
+/* ── 選択UI ── */
+.select-area {
+  max-width: 860px;
+  margin: 16px auto;
+  padding: 0 16px;
+}
+.select-card {
+  background: white;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.select-card h2 {
+  font-family: 'Noto Serif JP', serif;
+  font-size: .92rem;
+  color: var(--clay);
+  border-left: 3px solid var(--clay);
+  padding-left: 10px;
+  margin-bottom: 14px;
+}
+.product-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+.product-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1.5px solid #eee;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: .15s;
+  font-size: .83rem;
+}
+.product-check-item:hover { border-color: var(--clay); background: var(--smoke); }
+.product-check-item.selected { border-color: var(--clay); background: #faf3ec; }
+.product-check-item input[type=checkbox] { accent-color: var(--clay); width: 15px; height: 15px; flex-shrink: 0; }
+.product-check-item .item-info { flex: 1; min-width: 0; }
+.product-check-item .item-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-check-item .item-price { font-size: .72rem; color: var(--clay); }
+.product-check-item .item-stock { font-size: .68rem; color: #aaa; }
+.qty-input {
+  width: 44px;
+  border: 1.5px solid #ddd;
+  border-radius: 5px;
+  padding: 3px 4px;
+  font-size: .78rem;
+  text-align: center;
+  font-family: 'Noto Sans JP', sans-serif;
+}
+
+/* ── 印刷プレビューボタン ── */
+.preview-btn-area {
+  text-align: center;
+  padding: 16px;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━
+   A-one 75270 印刷レイアウト
+   A4: 210mm × 297mm
+   余白: 上9mm, 下9mm, 左11mm, 右11mm
+   ラベル: 20mm × 20mm
+   列間隔: (210 - 22 - 7*20) / 6 = 約3.0mm
+   行間隔: (297 - 18 - 10*20) / 9 = 約9.9mm
+   ━━━━━━━━━━━━━━━━━━━━━━━━ */
+.print-sheet {
+  display: none;
+  width: 210mm;
+  height: 297mm;
+  padding: 9mm 11mm;
+  background: white;
+  position: relative;
+}
+
+.label-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 20mm);
+  grid-template-rows: repeat(10, 20mm);
+  column-gap: 3mm;
+  row-gap: 9.9mm;
+}
+
+/* ── ラベル1枚（20mm×20mm） ── */
+.label {
+  width: 20mm;
+  height: 20mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5mm;
+  position: relative;
+}
+
+.label .qr-wrap {
+  width: 13mm;
+  height: 13mm;
+  flex-shrink: 0;
+}
+.label .qr-wrap canvas,
+.label .qr-wrap img {
+  width: 13mm !important;
+  height: 13mm !important;
+}
+
+.label .lbl-name {
+  font-size: 4.5pt;
+  line-height: 1.2;
+  text-align: center;
+  color: #1E1612;
+  margin-top: 0.4mm;
+  max-width: 19mm;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-family: 'Noto Sans JP', sans-serif;
+}
+.label .lbl-price {
+  font-size: 5pt;
+  font-weight: 600;
+  color: #8B5E3C;
+  text-align: center;
+  font-family: 'Noto Sans JP', sans-serif;
+  line-height: 1.1;
+}
+
+/* 空ラベル */
+.label.empty { opacity: 0; pointer-events: none; }
+
+/* ── 印刷設定 ── */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body * { visibility: hidden; }
+  .print-sheet { visibility: visible !important; display: block !important; }
+  .print-sheet * { visibility: visible !important; }
+  .print-sheet {
+    position: fixed;
+    top: 0; left: 0;
+    margin: 0; padding: 9mm 11mm;
+  }
+}
+
+/* ── トースト ── */
+.toast {
+  position: fixed; bottom: 20px; left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--kiln); color: var(--ash);
+  padding: 10px 22px; border-radius: 30px;
+  font-size: .83rem; z-index: 999;
+  transition: transform .3s; pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+.empty-msg {
+  text-align: center; padding: 32px; color: #aaa; font-size: .88rem;
+}
+</style>
+</head>
+<body>
+
+<!-- コントロールパネル -->
+<div class="control-panel no-print">
+  <div class="control-inner">
+    <div class="logo"><span>はまぐり窯</span> QRラベル印刷</div>
+    <div class="ctrl-group">
+      <span class="status-badge" id="selected-count">0件選択</span>
+      <span class="status-badge">A-one 75270 / 20×20mm / 70面</span>
+      <button class="btn btn-outline" onclick="selectAll()">全選択</button>
+      <button class="btn btn-outline" onclick="selectNone()">全解除</button>
+      <button class="btn btn-primary" onclick="generateLabels()">🏷️ ラベル生成</button>
+      <button class="btn btn-success" onclick="printLabels()" id="print-btn" style="display:none">🖨️ 印刷</button>
+    </div>
+  </div>
+</div>
+
+<!-- 商品選択エリア -->
+<div class="select-area no-print" id="select-area">
+  <div class="select-card">
+    <h2>印刷する商品を選択</h2>
+    <p style="font-size:.78rem;color:#888;margin-bottom:12px">
+      印刷枚数を指定できます（一点物は点ごとに自動で個別QRになります）
+    </p>
+    <div class="product-check-grid" id="product-check-grid">
+      <div class="empty-msg">商品データを読み込んでいます…</div>
+    </div>
+  </div>
+</div>
+
+<!-- 印刷プレビュー案内 -->
+<div class="preview-btn-area no-print" id="preview-area" style="display:none">
+  <div style="background:white;border-radius:12px;padding:20px;max-width:500px;margin:0 auto;box-shadow:0 2px 10px rgba(0,0,0,.07)">
+    <div style="font-size:1rem;font-weight:500;color:var(--clay);margin-bottom:8px">🏷️ ラベルが生成されました</div>
+    <div id="label-summary" style="font-size:.83rem;color:#666;margin-bottom:14px"></div>
+    <div style="font-size:.78rem;color:#888;margin-bottom:14px;line-height:1.8">
+      ① 「🖨️ 印刷」をクリック<br>
+      ② 用紙サイズ：<strong>A4</strong>、倍率：<strong>100%（実際のサイズ）</strong><br>
+      ③ 余白：<strong>なし</strong> に設定して印刷
+    </div>
+    <button class="btn btn-success" style="width:100%" onclick="printLabels()">🖨️ 印刷する</button>
+    <button class="btn btn-outline" style="width:100%;margin-top:8px;color:var(--clay);border-color:var(--clay)" onclick="backToSelect()">← 選択に戻る</button>
+  </div>
+</div>
+
+<!-- 印刷シート（画面非表示・印刷時のみ表示） -->
+<div class="print-sheet" id="print-sheet">
+  <div class="label-grid" id="label-grid"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━
+let products = [];
+let selected = {}; // {productId: qty}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━
+window.onload = () => {
+  const saved = localStorage.getItem('hamaguri_products');
+  if (saved) {
+    products = JSON.parse(saved);
+    renderProductList();
+  } else {
+    document.getElementById('product-check-grid').innerHTML =
+      '<div class="empty-msg">商品データが見つかりません。<br>商品管理システム（index.html）で商品を登録してから開いてください。</div>';
+  }
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  商品リスト
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function renderProductList() {
+  const grid = document.getElementById('product-check-grid');
+  if (products.length === 0) {
+    grid.innerHTML = '<div class="empty-msg">商品が登録されていません</div>';
+    return;
+  }
+  grid.innerHTML = products.map(p => {
+    const isUnique = p.itemType === 'unique';
+    const avail = isUnique
+      ? (p.units||[]).filter(u=>u.status==='available').length
+      : (parseInt(p.stock)||0);
+    const maxQty = isUnique ? avail : avail;
+    return `
+      <label class="product-check-item" id="item-${p.id}" onclick="toggleProduct(${p.id}, event)">
+        <input type="checkbox" id="chk-${p.id}" onchange="updateCount()" onclick="event.stopPropagation()">
+        <div class="item-info">
+          <div class="item-name">${p.name}</div>
+          <div class="item-price">¥${Number(p.price).toLocaleString()}</div>
+          <div class="item-stock">${isUnique?'一点物':'量産品'}・在庫${avail}点</div>
+        </div>
+        <input type="number" class="qty-input" id="qty-${p.id}"
+          value="${Math.min(avail, isUnique ? avail : 1)}"
+          min="1" max="${maxQty||99}"
+          onclick="event.stopPropagation()"
+          onchange="updateCount()"
+          title="印刷枚数">
+      </label>`;
+  }).join('');
+}
+
+function toggleProduct(id, e) {
+  if (e.target.tagName === 'INPUT') return;
+  const chk = document.getElementById('chk-' + id);
+  chk.checked = !chk.checked;
+  document.getElementById('item-' + id).classList.toggle('selected', chk.checked);
+  updateCount();
+}
+
+function updateCount() {
+  let total = 0;
+  products.forEach(p => {
+    const chk = document.getElementById('chk-' + p.id);
+    if (chk && chk.checked) {
+      const qty = parseInt(document.getElementById('qty-' + p.id)?.value) || 1;
+      const isUnique = p.itemType === 'unique';
+      total += isUnique ? (p.units||[]).filter(u=>u.status==='available').length : qty;
+    }
+  });
+  document.getElementById('selected-count').textContent = total + '枚選択中';
+}
+
+function selectAll() {
+  products.forEach(p => {
+    const chk = document.getElementById('chk-' + p.id);
+    if (chk) { chk.checked = true; document.getElementById('item-' + p.id).classList.add('selected'); }
+  });
+  updateCount();
+}
+
+function selectNone() {
+  products.forEach(p => {
+    const chk = document.getElementById('chk-' + p.id);
+    if (chk) { chk.checked = false; document.getElementById('item-' + p.id).classList.remove('selected'); }
+  });
+  updateCount();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  ラベル生成
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function generateLabels() {
+  // 選択商品とラベルデータを収集
+  const labelData = [];
+  products.forEach(p => {
+    const chk = document.getElementById('chk-' + p.id);
+    if (!chk || !chk.checked) return;
+    const isUnique = p.itemType === 'unique';
+    if (isUnique) {
+      // 一点物：各点ごとにQRデータを生成
+      (p.units||[]).filter(u=>u.status==='available').forEach(u => {
+        labelData.push({
+          qrData: JSON.stringify({id:p.id, unitId:u.unitId, name:p.name, price:p.price, isUnique:true}),
+          name: p.name,
+          sub: u.label || 'No.'+u.unitId,
+          price: p.price,
+        });
+      });
+    } else {
+      const qty = parseInt(document.getElementById('qty-' + p.id)?.value) || 1;
+      for (let i = 0; i < qty; i++) {
+        labelData.push({
+          qrData: JSON.stringify({id:p.id, name:p.name, price:p.price}),
+          name: p.name,
+          sub: null,
+          price: p.price,
+        });
+      }
+    }
+  });
+
+  if (labelData.length === 0) { toast('印刷する商品を選択してください'); return; }
+  if (labelData.length > 70) {
+    if (!confirm(`${labelData.length}枚のラベルが必要です。70枚を超えるため複数シートになります。最初の70枚を生成しますか？`)) return;
+  }
+
+  // グリッドをクリア（70マス）
+  const grid = document.getElementById('label-grid');
+  grid.innerHTML = '';
+
+  const total = Math.min(labelData.length, 70);
+  const promises = [];
+
+  for (let i = 0; i < 70; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'label' + (i >= total ? ' empty' : '');
+    grid.appendChild(cell);
+
+    if (i >= total) continue;
+    const d = labelData[i];
+
+    // QRラップ
+    const qrWrap = document.createElement('div');
+    qrWrap.className = 'qr-wrap';
+    cell.appendChild(qrWrap);
+
+    // 商品名
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lbl-name';
+    // 名前が長い場合は短縮
+    let displayName = d.name;
+    if (d.sub) displayName = d.name.length > 6 ? d.name.slice(0,6)+'…' : d.name;
+    nameEl.textContent = displayName + (d.sub ? ' ' + d.sub : '');
+    cell.appendChild(nameEl);
+
+    // 価格
+    const priceEl = document.createElement('div');
+    priceEl.className = 'lbl-price';
+    priceEl.textContent = '¥' + Number(d.price).toLocaleString();
+    cell.appendChild(priceEl);
+
+    // QR生成（非同期）
+    const p = new Promise(resolve => {
+      setTimeout(() => {
+        new QRCode(qrWrap, {
+          text: d.qrData,
+          width: 49, height: 49, // 13mm @ 96dpi ≈ 49px
+          colorDark: '#1E1612',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        resolve();
+      }, i * 8); // 少しずつ遅らせて負荷分散
+    });
+    promises.push(p);
+  }
+
+  Promise.all(promises).then(() => {
+    document.getElementById('select-area').style.display = 'none';
+    document.getElementById('preview-area').style.display = '';
+    document.getElementById('print-btn').style.display = '';
+    document.getElementById('label-summary').textContent =
+      `${total}枚のラベルを生成しました（A-one 75270・1シート70面）`;
+    if (labelData.length > 70) {
+      document.getElementById('label-summary').textContent +=
+        `\n※ ${labelData.length}枚中、最初の70枚のみ表示しています`;
+    }
+    toast(total + '枚のラベルを生成しました');
+  });
+}
+
+function backToSelect() {
+  document.getElementById('select-area').style.display = '';
+  document.getElementById('preview-area').style.display = 'none';
+  document.getElementById('print-btn').style.display = 'none';
+}
+
+function printLabels() {
+  window.print();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  TOAST
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>
