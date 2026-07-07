@@ -319,29 +319,34 @@ window.onload = () => {
 // ━━━━━━━━━━━━━━━━━━━━━━━
 //  商品リスト
 // ━━━━━━━━━━━━━━━━━━━━━━━
+function safeId(id) {
+  // IDをDOM属性に安全な文字列に変換
+  return String(id).replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 function renderProductList() {
   const grid = document.getElementById('product-check-grid');
   if (products.length === 0) {
     grid.innerHTML = '<div class="empty-msg">商品が登録されていません</div>';
     return;
   }
-  grid.innerHTML = products.map(p => {
+  grid.innerHTML = products.map((p, idx) => {
+    const sid = safeId(p.id);
     const isUnique = p.itemType === 'unique';
     const avail = isUnique
       ? (p.units||[]).filter(u=>u.status==='available').length
       : (parseInt(p.stock)||0);
-    const maxQty = isUnique ? avail : avail;
     return `
-      <label class="product-check-item" id="item-${p.id}" onclick="toggleProduct(${p.id}, event)">
-        <input type="checkbox" id="chk-${p.id}" onchange="updateCount()" onclick="event.stopPropagation()">
+      <label class="product-check-item" id="item-${sid}" onclick="toggleProduct(${idx}, event)">
+        <input type="checkbox" id="chk-${sid}" onchange="updateCount()" onclick="event.stopPropagation()">
         <div class="item-info">
           <div class="item-name">${p.name}</div>
           <div class="item-price">¥${Number(p.price).toLocaleString()}</div>
           <div class="item-stock">${isUnique?'一点物':'量産品'}・在庫${avail}点</div>
         </div>
-        <input type="number" class="qty-input" id="qty-${p.id}"
-          value="${Math.min(avail, isUnique ? avail : 1)}"
-          min="1" max="${maxQty||99}"
+        <input type="number" class="qty-input" id="qty-${sid}"
+          value="${isUnique ? avail : 1}"
+          min="1" max="${avail||99}"
           onclick="event.stopPropagation()"
           onchange="updateCount()"
           title="印刷枚数">
@@ -349,41 +354,161 @@ function renderProductList() {
   }).join('');
 }
 
-function toggleProduct(id, e) {
+function toggleProduct(idx, e) {
   if (e.target.tagName === 'INPUT') return;
-  const chk = document.getElementById('chk-' + id);
+  const p = products[idx];
+  const sid = safeId(p.id);
+  const chk = document.getElementById('chk-' + sid);
+  if (!chk) return;
   chk.checked = !chk.checked;
-  document.getElementById('item-' + id).classList.toggle('selected', chk.checked);
+  document.getElementById('item-' + sid).classList.toggle('selected', chk.checked);
   updateCount();
 }
 
 function updateCount() {
   let total = 0;
   products.forEach(p => {
-    const chk = document.getElementById('chk-' + p.id);
+    const sid = safeId(p.id);
+    const chk = document.getElementById('chk-' + sid);
     if (chk && chk.checked) {
-      const qty = parseInt(document.getElementById('qty-' + p.id)?.value) || 1;
       const isUnique = p.itemType === 'unique';
-      total += isUnique ? (p.units||[]).filter(u=>u.status==='available').length : qty;
+      if (isUnique) {
+        total += (p.units||[]).filter(u=>u.status==='available').length || 1;
+      } else {
+        const qtyEl = document.getElementById('qty-' + sid);
+        total += qtyEl ? (parseInt(qtyEl.value)||1) : 1;
+      }
     }
   });
   document.getElementById('selected-count').textContent = total + '枚選択中';
 }
 
 function selectAll() {
-  products.forEach(p => {
-    const chk = document.getElementById('chk-' + p.id);
-    if (chk) { chk.checked = true; document.getElementById('item-' + p.id).classList.add('selected'); }
+  products.forEach((p, idx) => {
+    const sid = safeId(p.id);
+    const chk = document.getElementById('chk-' + sid);
+    const item = document.getElementById('item-' + sid);
+    if (chk) { chk.checked = true; }
+    if (item) item.classList.add('selected');
   });
   updateCount();
 }
 
 function selectNone() {
   products.forEach(p => {
-    const chk = document.getElementById('chk-' + p.id);
-    if (chk) { chk.checked = false; document.getElementById('item-' + p.id).classList.remove('selected'); }
+    const sid = safeId(p.id);
+    const chk = document.getElementById('chk-' + sid);
+    const item = document.getElementById('item-' + sid);
+    if (chk) { chk.checked = false; }
+    if (item) item.classList.remove('selected');
   });
   updateCount();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━
+//  ラベル生成
+// ━━━━━━━━━━━━━━━━━━━━━━━
+function generateLabels() {
+  const labelData = [];
+  try {
+    products.forEach(p => {
+      const sid = safeId(p.id);
+      const chk = document.getElementById('chk-' + sid);
+      if (!chk || !chk.checked) return;
+      const isUnique = p.itemType === 'unique';
+      if (isUnique) {
+        const availUnits = (p.units||[]).filter(u=>u.status==='available');
+        if (availUnits.length === 0) {
+          labelData.push({
+            qrData: JSON.stringify({id:p.id, name:p.name, price:p.price}),
+            name: p.name, sub: null, price: p.price,
+          });
+        } else {
+          availUnits.forEach(u => {
+            labelData.push({
+              qrData: JSON.stringify({id:p.id, unitId:u.unitId, name:p.name, price:p.price, isUnique:true}),
+              name: p.name,
+              sub: u.label || 'No.'+u.unitId,
+              price: p.price,
+            });
+          });
+        }
+      } else {
+        const qtyEl = document.getElementById('qty-' + sid);
+        const qty = qtyEl ? (parseInt(qtyEl.value)||1) : 1;
+        for (let i = 0; i < qty; i++) {
+          labelData.push({
+            qrData: JSON.stringify({id:p.id, name:p.name, price:p.price}),
+            name: p.name, sub: null, price: p.price,
+          });
+        }
+      }
+    });
+  } catch(err) {
+    toast('エラー: ' + err.message);
+    console.error('labelData収集エラー:', err);
+    return;
+  }
+
+  if (labelData.length === 0) { toast('印刷する商品を選択してください'); return; }
+  if (labelData.length > 70) {
+    if (!confirm(`${labelData.length}枚のラベルが必要です。最初の70枚を生成しますか？`)) return;
+  }
+
+  if (typeof QRCode === 'undefined') {
+    toast('QRライブラリ未読込。ページを再読み込みしてください。');
+    return;
+  }
+
+  const grid = document.getElementById('label-grid');
+  grid.innerHTML = '';
+  const total = Math.min(labelData.length, 70);
+
+  for (let i = 0; i < 70; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'label' + (i >= total ? ' empty' : '');
+    grid.appendChild(cell);
+    if (i >= total) continue;
+
+    const d = labelData[i];
+    const qrWrap = document.createElement('div');
+    qrWrap.className = 'qr-wrap';
+    cell.appendChild(qrWrap);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lbl-name';
+    let displayName = d.name;
+    if (d.sub) displayName = d.name.length > 6 ? d.name.slice(0,6)+'…' : d.name;
+    nameEl.textContent = displayName + (d.sub ? ' ' + d.sub : '');
+    cell.appendChild(nameEl);
+
+    const priceEl = document.createElement('div');
+    priceEl.className = 'lbl-price';
+    priceEl.textContent = '¥' + Number(d.price).toLocaleString();
+    cell.appendChild(priceEl);
+
+    try {
+      new QRCode(qrWrap, {
+        text: d.qrData,
+        width: 49, height: 49,
+        colorDark: '#1E1612',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e) {
+      qrWrap.innerHTML = '<div style="font-size:6pt;color:#999;text-align:center;padding-top:4px">QR Error</div>';
+    }
+  }
+
+  setTimeout(() => {
+    document.getElementById('select-area').style.display = 'none';
+    document.getElementById('preview-area').style.display = '';
+    document.getElementById('print-btn').style.display = '';
+    let summary = `${total}枚のラベルを生成しました（A-one 75270・1シート70面）`;
+    if (labelData.length > 70) summary += `\n※ ${labelData.length}枚中、最初の70枚のみ表示`;
+    document.getElementById('label-summary').textContent = summary;
+    toast(total + '枚のラベルを生成しました');
+  }, 300);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━
